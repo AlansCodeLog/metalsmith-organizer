@@ -1,0 +1,33 @@
+{
+  "name": "metalsmith-organizer",
+  "version": "1.0.0",
+  "description": "A Metalsmith plugin for organizing posts into groups (pages, posts, archives, etc), including their pagination, permalinks, etc.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Alan North",
+  "license": "MIT",
+  "dependencies": {
+    "moment": "^2.18.1",
+    "slug": "^0.9.1"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AlansCodeLog/metalsmith-organizer.git"
+  },
+  "keywords": [
+    "metalsmith",
+    "plugins",
+    "tags",
+    "collections",
+    "archive",
+    "pages",
+    "pagination"
+  ],
+  "bugs": {
+    "url": "https://github.com/AlansCodeLog/metalsmith-organizer/issues"
+  },
+  "homepage": "https://github.com/AlansCodeLog/metalsmith-organizer#readme"
+}
