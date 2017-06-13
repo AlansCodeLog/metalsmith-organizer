@@ -63,6 +63,8 @@ An object containing all the groups with each group being it's own object.
 
 Any property that is not an option (`date_format, date_page_layout, expose, no_folder, num_format, override_permalink_group, page_description, page_layout, path, per_page, reverse, search_type`) can be used as the search criteria to match posts to the group. There can be as many properties as you like but it cannot match multiple of the same property (e.g `tags: "tag1, tag2"` or by repeating them `tags: "tag1", tags: "tag2`).
 
+You can also now check whether a property exists with a boolean (e.g `thumbnail: true`). This will exclude any posts without that property.
+
 If you don't specify any search criteria, all posts will be included in the group.
 
 ### `search_type`
@@ -228,10 +230,11 @@ Useful for creating a 404 page, otherwise you would always get `404/index.html`.
         portfolio: {
             type: "post", //get all posts...
             tags: "thumb",//...that also have a thumb
+            thumb_url: true, //check that a thumb url property exists
             path: "{group}", //make the path the group name so we get portfolio/index.html
             //no per_page means it we don't need to specify anything about page numbers, it's just a single page
             page_layout: "index-masonry-thumb", //use a different template
-        }
+        },
     }
 ```
 

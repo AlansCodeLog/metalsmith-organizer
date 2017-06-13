@@ -22,18 +22,25 @@ function plugin(opts) {
         return string.replace(/(-|\/)/g, "").replace(/(\'|\"|\(|\)|\[|\]|\?|\+)/g, "").replace(/(\s)+/g, "-").toLowerCase()
     }
     var make_safe = typeof opts.make_safe !== "undefined" ? opts.make_safe : default_safe
-    function contains(data, item) {
+    function contains(data, property_val) {
+        if (typeof property_val === "boolean") {
+            if (property_val === true && typeof data !== "undefined") {
+                return true
+            } else {
+                return false
+            }
+        }
         if (typeof data == "string") {
             data = data.split(",")
         }
         if (typeof data !== "undefined") {
             data = data.map(tag => {
-                var tag = String(tag).trim().toLowerCase()
+                var tag = make_safe(String(tag).trim())
                 return tag
             })
         }
         if (Array.isArray(data)) {
-            return data.includes(item)
+            return data.includes(make_safe(property_val))
         }
     }
     function match(data, group, searchtype) {
@@ -43,7 +50,7 @@ function plugin(opts) {
         }
         for (property in search) {
             var propertyname = Object.keys(search[property])
-            var propertyvalue = search[property][propertyname].toLowerCase()
+            var propertyvalue = search[property][propertyname]
             if (searchtype == "all") {
                 var match = true
                 if (contains(data[propertyname], propertyvalue) && match !== false) {
@@ -271,9 +278,9 @@ function page_parser () {
             } else if (typeof expose !== "undefined") { //individual txnms
                 page.exposed = expose
                 page.expose_value = minigroup
-            } //else if (minigroup !== "files"){ //dates
-                //page.exposed = minigroup
-            //}
+            } else if (minigroup !== "files"){ //dates ???why did i comment this out before?
+                page.exposed = minigroup
+            }
             if (typeof opts.groups[group].page_description !== "undefined") {
                 page.page_description = opts.groups[group].page_description
             }
