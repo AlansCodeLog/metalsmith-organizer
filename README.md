@@ -186,6 +186,11 @@ Same path rules apply.
 
 Useful for creating a 404 page, otherwise you would always get `404/index.html`.
 
+### `add_prop`
+(object {property: value})
+
+Adds the property to any file/post that passed through the group, for use internally with other metalsmith plugins. For example, I want a group to determine which posts will be found by a search plugin so I can do `add_prop: {search: true}`. Note the property is not exclusive to the group as it is a property of the post itself.
+
 ## Example
 
 ```javascript
@@ -201,6 +206,7 @@ Useful for creating a 404 page, otherwise you would always get `404/index.html`.
             date_page_layout: "index-year.ext/index-month.ext", //use one template for the year and another for the months,
             num_format: "page/{num}", //archives look like /2017/01/page/2/index.html
             per_page: 10,
+            add_prop: {search: true} //for use with a plugin later
         },
         index: {//for the home page
             type: "post",//get all posts, exclude pages

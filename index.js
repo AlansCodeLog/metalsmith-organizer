@@ -4,7 +4,7 @@ module.exports = plugin;
 
 function plugin(opts) {
     var groups = {}
-    var exceptions = ["path", "override_permalink_group", "page_layout", "date_page_layout", "expose", "date_format", "per_page", "page_description", "num_format", "reverse", "no_folder", "search_type"]
+    var exceptions = ["path", "override_permalink_group", "page_layout", "date_page_layout", "expose", "date_format", "per_page", "page_description", "num_format", "reverse", "no_folder", "search_type", "add_prop"]
     if (typeof opts.drafts == "undefined") {
         opts.drafts = false
     }
@@ -112,6 +112,10 @@ function push_to_group(groups, group, file, post, expose) {
         post.permalink = path.replace(/\/{num}/g, "").replace(/{(.*?)}/g, function (match, matched_group) {
             return pathreplace[matched_group]
         })
+    }
+    if (typeof opts.groups[group].add_prop !== "undefined") {
+        var prop = Object.keys(opts.groups[group].add_prop)[0]
+        post[prop] = opts.groups[group].add_prop[prop]
     }
     //console.log(post.permalink, group);
     groups[group] = groups[group] || {}
