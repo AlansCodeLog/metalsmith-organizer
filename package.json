@@ -1,6 +1,6 @@
 {
   "name": "metalsmith-organizer",
-  "version": "1.2.0beta",
+  "version": "1.2.0beta.1",
   "description": "A Metalsmith plugin for organizing posts into groups (pages, posts, archives, etc), including their pagination, permalinks, etc.",
   "main": "index.js",
   "scripts": {

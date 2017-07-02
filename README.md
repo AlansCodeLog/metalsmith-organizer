@@ -187,9 +187,19 @@ Same path rules apply.
 Useful for creating a 404 page, otherwise you would always get `404/index.html`.
 
 ### `add_prop`
-(object {property: value})
+(array of objects [{property: value}])
 
-Adds the property to any file/post that passed through the group, for use internally with other metalsmith plugins. For example, I want a group to determine which posts will be found by a search plugin so I can do `add_prop: {search: true}`. Note the property is not exclusive to the group as it is a property of the post itself.
+Adds the property to any file/post that passed through the group, for use internally with other metalsmith plugins. For example, I want a group to determine which posts will be found by a search plugin so I can do `add_prop: [{search: true}]`. Note the property is not exclusive to the group as it is a property of the post itself.
+
+### `change_extension`
+(default ".html")
+
+For if you need to generate other filetypes such as xml for feeds and sitemaps.
+
+### `page_only`
+(default false)
+
+For when you want just the final page/pages. For example, for generating feeds, you'd want just a list of all the posts available.
 
 ## Example
 
@@ -206,7 +216,7 @@ Adds the property to any file/post that passed through the group, for use intern
             date_page_layout: "index-year.ext/index-month.ext", //use one template for the year and another for the months,
             num_format: "page/{num}", //archives look like /2017/01/page/2/index.html
             per_page: 10,
-            add_prop: {search: true} //for use with a plugin later
+            add_prop: [{search: true}] //for use with a plugin later
         },
         index: {//for the home page
             type: "post",//get all posts, exclude pages
@@ -240,6 +250,23 @@ Adds the property to any file/post that passed through the group, for use intern
             path: "{group}", //make the path the group name so we get portfolio/index.html
             //no per_page means it we don't need to specify anything about page numbers, it's just a single page
             page_layout: "index-masonry-thumb", //use a different template
+        },
+        rss: {
+            type: "post", //get all posts like the post group
+            path: "{group}", //url will be at rss/index.xml
+            change_extension: ".xml", //change our extension
+            page_layout: "rss", //use our rss template
+            page_only: true // only the "pages" so that we get a list of all our post files
+        },
+        tag_rss: { //then say we wanted an rss feed for every tag
+            type: "post", //we use the same search criteria as the tags group
+            expose: "tags",
+            path: "tag/{expose}",
+            //the path is a little different because we can't just use {group} because we have to name it different,
+            //so we manually specify it so we'll get files output at tags/tag/index.xml, tags/tag2/index.xml
+            page_only: true, // we don't want all the individual files created
+            change_extension: ".xml" //change our extension
+            page_layout: "rss", //change our template to the rss template
         },
     }
 ```
