@@ -82,6 +82,9 @@ function plugin(opts) {
         }
     }
     function push_to_group(groups, group, file, post, expose) {
+        if (typeof post.title == "undefined") {
+           throw new Error("File " + file +" missing title. If the file has a title, make sure the frontmatter is formatted correctly.")
+        }
         post.original_contents = new Buffer(post.contents.toString())
         let pathreplace = {}
         if (typeof post.slug !== "undefined") {
@@ -109,7 +112,7 @@ function plugin(opts) {
             } else {
                 var path = opts.groups[group].path
             }
-            post.permalink = path.replace(/\/{num}/g, "").replace(/{(.*?)}/g, function (match, matched_group) {
+            post.permalink = "/" + path.replace(/\/{num}/g, "").replace(/{(.*?)}/g, function (match, matched_group) {
                 return pathreplace[matched_group]
             })
         }
@@ -271,7 +274,7 @@ function plugin(opts) {
                             return match
                         }
                     })
-                    if (typeof opts.groups[group].page_only !== "undefined" && opts.groups[group].page_only == true &&  typeof opts.groups[group].no_folder !== "undefined" && opts.groups[group].no_folder == true) {
+                    if (typeof opts.groups[group].page_only !== "undefined" && opts.groups[group].page_only == true && typeof opts.groups[group].no_folder !== "undefined" && opts.groups[group].no_folder == true) {
                         var filename = ""
                         path = path.slice(0, path.length - 1)
                     } else {
@@ -321,12 +324,12 @@ function plugin(opts) {
             }
         }
         function post_parser () {
-            if (typeof opts.groups[group].page_only !== "undefined") {
+            if (typeof opts.groups[group].page_only !== "undefined" && opts.groups[group].page_only == true) {
                 return
             }
             if (group == opts.permalink_group || opts.groups[group].override_permalink_group == true) {
                 for (post in groups[group].files) {
-                    var postpage = groups[group].files[post]
+                    var postpage = Object.assign({}, groups[group].files[post]) //reference to group was being overwritten
                     if (typeof opts.groups[group].no_folder !== "undefined" && opts.groups[group].no_folder == true){
                         postpage.path = postpage.permalink.replace(/\/||\\/, "") + extension
                     } else {

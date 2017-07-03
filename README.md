@@ -201,6 +201,8 @@ For if you need to generate other filetypes such as xml for feeds and sitemaps.
 
 For when you want just the final page/pages. For example, for generating feeds, you'd want just a list of all the posts available.
 
+Careful not to set `override_permalink_group` to true with this. No individual "posts" are being created so we don't need it.
+
 ## Example
 
 ```javascript
