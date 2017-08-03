@@ -14,7 +14,7 @@ function plugin (opts) {
   }
   opts.search_type = opts.search_type || 'all';
 
-  // get search criteria for each group
+  // set search criteria for each group
   for (let groupIndex in opts.groups) {
     opts.groups[groupIndex].search = Object.keys(opts.groups[groupIndex]).map(criteria => {
       if (!exceptions.includes(criteria)) { // add new non-search options here
@@ -97,8 +97,8 @@ function plugin (opts) {
       let groupIndex = null;
 
       // parse all files passed to the plugin, filter and sort them
-      for (let file in files) {
-        let post = files[file];
+      for (let fileIndex in files) {
+        let post = files[fileIndex];
         for (groupIndex in opts.groups) {
           // if draft check
           if (opts.drafts === false &&
@@ -108,19 +108,21 @@ function plugin (opts) {
           // see if post specifies search_type
           let searchType = typeof opts.groups[groupIndex].search_type !== 'undefined' ? opts.groups[groupIndex].search_type : opts.search_type;
           // check if post matches criteria then send the post to sort if it does
-          if (matchPost(post, groupIndex, searchType)) {
-            sortPost(groups, groupIndex, file, post);
+          if (matchPost(post, searchType, opts.groups[groupIndex].search)) {
+            groups[groupIndex] = sortPost(post, fileIndex, opts.groups[groupIndex]);
           }
         }
       }
 
-      // once we have out new group object sort it by date if necessary
+      // once we have out new `groups` object sort it by date if necessary
       for (groupIndex in groups) {
         let expose = opts.groups[groupIndex].expose;
         if (expose) {
           // FIXME variable shadowing, shouldn't happening
+          // FIXME also, what the hell is going on here, not everything is an expose!?!?! variable naming FTW! LOL JK!
           for (expose in groups[groupIndex]) {
-            groups[groupIndex][expose].files = groups[groupIndex][expose].sort(_order);
+            // FIXME there might not be files available
+            groups[groupIndex][expose].files = groups[groupIndex][expose].files.sort(_order);
           }
         } else {
           // console.log(typeof groups[groups].files == "undefined")
@@ -152,29 +154,28 @@ function plugin (opts) {
      * returns whether a post matches our criteria or not
      *
      * @param {Object} data the data associated to a parsed file
-     * @param {Number} groupIndex the index of the current group
      * @param {String} searchType can either be `all` or `any`
+     * @param {Array} searchParams the specified params used for matching
      * @returns {Boolean}
      */
-    function matchPost (data, groupIndex, searchType) {
-      const search = opts.groups[groupIndex].search;
+    function matchPost (data, searchType, searchParams) {
       let match = false;
       // we include all posts by default if no search has been defined in the options
-      if (search.length === 0) {
+      if (searchParams.length === 0) {
         return true;
       }
-      for (let propIndex = 0; propIndex < search.length; propIndex++) {
-        let propertyName = Object.keys(search[propIndex]);
-        let propertyValue = search[propIndex][propertyName];
+      for (let propIndex = 0; propIndex < searchParams.length; propIndex++) {
+        let propertyName = Object.keys(searchParams[propIndex]);
+        let propertyValue = searchParams[propIndex][propertyName];
 
-        // any one wrong will return false
+        // first one wrong will return false
         if (searchType === 'all') {
           match = true;
           if (!contains(data[propertyName], propertyValue)) {
             match = false;
             break;
           }
-        // any one correct will return true
+        // first one correct will return true
         } else if (searchType === 'any') {
           if (contains(data[propertyName], propertyValue)) {
             match = true;
@@ -221,44 +222,52 @@ function plugin (opts) {
     }
 
     /**
-     * once we know a post matches our criteria it's sorted into the right group
+     * sort the post/file into the right group.
+     * `expose` will influence the sorting and shoud be used in a group like:
+     * ```
+     * {
+     *    expose: 'tags',
+     *    tags: [ 'alpha', 'beta', 'gamma' ]
+     * }
+     * ```
      *
-     * @param {any} groups
-     * @param {Number} groupIndex
-     * @param {any} file
-     * @param {any} post
+     * @param {Object} post the actual object containing all properties of the post
+     * @param {Number|String} fileName the current file being parsed
+     * @param {Array} optsGroup the current groups in the options passed to Metalsmith
+     * @return {Array}
      */
-    function sortPost (groups, groupIndex, file, post) {
-      const expose = opts.groups[groupIndex].expose;
-      const exposeValue = opts.groups[groupIndex][expose];
+    function sortPost (post, fileName, optsGroup) {
+      const expose = optsGroup.expose;
+      const exposeValue = optsGroup[expose];
+
+      if (typeof post.title === 'undefined') {
+        throw new Error('File ' + fileName + ' missing title. If the file has a title, make sure the frontmatter is formatted correctly.');
+      }
 
       if (expose) {
         if (typeof exposeValue === 'undefined') { // e.g. expose:tags but no specific tag defined, it'll expose all
           for (let property in post[expose]) { // no need to get list of tags, for each tag in post it's "pushed" to its tags
-            pushToGroup(groups, groupIndex, file, post, post[expose][property]);
+            return createGroup(optsGroup, post, post[expose][property]);
           }
         } else {
-          pushToGroup(groups, groupIndex, file, post, exposeValue); // e.g. expose: tags, tags: post
+          return createGroup(optsGroup, post, exposeValue); // e.g. expose: tags, tags: post
         }
       } else {
-        pushToGroup(groups, groupIndex, file, post); // don't expose anything
+        return createGroup(optsGroup, post); // don't expose anything
       }
     }
 
     /**
-     * from sortPost we actually push to our empty group array
+     * create the brand new group populated with all the good intentions
      *
-     * @param {Array} groups where to push to
-     * @param {Number} groupIndex current group being acted upon
-     * @param {any} file
-     * @param {any} post
-     * @param {any} expose
+     * @param {Object} optsGroup current group being acted upon
+     * @param {any} post the ready-available data related to the post
+     * @param {String|Array|Boolean} expose the exposed variable for the post
+     * @return {Array}
      */
-    function pushToGroup (groups, groupIndex, file, post, expose) {
-      const groupName = opts.groups[groupIndex].group_name;
-      if (typeof post.title === 'undefined') {
-        throw new Error('File ' + file + ' missing title. If the file has a title, make sure the frontmatter is formatted correctly.');
-      }
+    function createGroup (optsGroup, post, expose) {
+      // post prepare
+      const groupName = optsGroup.group_name;
       post.original_contents = new Buffer(post.contents.toString());
       // sort out the path for the post
       let pathReplace = {};
@@ -270,60 +279,66 @@ function plugin (opts) {
       // normal groups
       // because the object is just being referenced, it might have already been set
       if (typeof post.permalink === 'undefined') {
-        const permalinkGroup = _getGroupIndex(opts.permalink_group);
+        const permalinkGroupIndex = _getGroupIndex(opts.permalink_group);
         pathReplace.group = groupName;
-        if (typeof opts.groups[permalinkGroup].date_format !== 'undefined') {
-          pathReplace.date = moment(post.date).format(opts.groups[permalinkGroup].date_format);
+        if (typeof opts.groups[ permalinkGroupIndex ].date_format !== 'undefined') {
+          pathReplace.date = moment(post.date).format(opts.groups[ permalinkGroupIndex ].date_format);
         }
-        post.permalink = '/' + opts.groups[permalinkGroup].path.replace(/\/{num}/g, '').replace(/{(.*?)}/g, function (matchPost, matchedGroup) {
-          return pathReplace[matchedGroup];
-        });
+        post.permalink = '/' + opts.groups[permalinkGroupIndex].path
+          .replace(/\/{num}/g, '')
+          .replace(/{(.*?)}/g, function (matchPost, matchedGroup) {
+            return pathReplace[matchedGroup];
+          });
       }
       // groups that override the permalink
-      if (typeof opts.groups[groupIndex].override_permalink_group !== 'undefined') {
+      if (typeof optsGroup.override_permalink_group !== 'undefined') {
         let path;
         pathReplace.group = groupName;
-        if (typeof opts.groups[groupIndex].override_permalink_group.date_format !== 'undefined') {
-          pathReplace.date = moment(post.date).format(opts.groups[groupIndex].override_permalink_group.date_format);
+        if (typeof optsGroup.override_permalink_group.date_format !== 'undefined') {
+          pathReplace.date = moment(post.date).format(optsGroup.override_permalink_group.date_format);
         }
-        if (typeof opts.groups[groupIndex].path === 'undefined') {
+        if (typeof optsGroup.path === 'undefined') {
           path = '{group}/{title}';
         } else {
-          path = opts.groups[groupIndex].path;
+          path = optsGroup.path;
         }
         post.permalink = '/' + path.replace(/\/{num}/g, '').replace(/{(.*?)}/g, function (matchPost, matchedGroup) {
           return pathReplace[matchedGroup];
         });
       }
       // add any properties specified
-      if (typeof opts.groups[groupIndex].add_prop !== 'undefined') {
-        for (let set in opts.groups[groupIndex].add_prop) {
-          const prop = Object.keys(opts.groups[groupIndex].add_prop[set])[0];
-          post[prop] = opts.groups[groupIndex].add_prop[set][prop];
+      if (typeof optsGroup.add_prop !== 'undefined') {
+        for (let set in optsGroup.add_prop) {
+          const prop = Object.keys(optsGroup.add_prop[set])[0];
+          post[prop] = optsGroup.add_prop[set][prop];
         }
       }
+      // end of post prepare
+
       // actually push to group
-      groups[groupIndex] = groups[groupIndex] || {};
+      const group = {};
       if (expose) {
-        groups[groupIndex][expose] = groups[groupIndex][expose] || {};
-        groups[groupIndex][expose].files = groups[groupIndex][expose].files || [];
-        groups[groupIndex][expose].files.push(post);
+        group[expose] = group[expose] || {};
+        group[expose].files = group[expose].files || [];
+        group[expose].files.push(post);
       } else {
-        if (typeof opts.groups[groupIndex].date_format !== 'undefined') {
-          let dateItems = opts.groups[groupIndex].date_format;
+        if (typeof opts.groups.date_format !== 'undefined') {
+          let dateItems = opts.groups.date_format;
           dateItems = dateItems.split('/');
           for (let i = 1; i <= dateItems.length; i++) {
             let format = dateItems.slice(0, i).join('/');
             let dategroup = moment(post.date).format(format);
-            groups[groupIndex].dates = groups[groupIndex].dates || {};
-            groups[groupIndex].dates[dategroup] = groups[groupIndex].dates[dategroup] || {};
-            groups[groupIndex].dates[dategroup].files = groups[groupIndex].dates[dategroup].files || [];
-            groups[groupIndex].dates[dategroup].files.push(post);
+            group.dates = group.dates || {};
+            group.dates[dategroup] = group.dates[dategroup] || {};
+            group.dates[dategroup].files = group.dates[dategroup].files || [];
+            group.dates[dategroup].files.push(post);
           }
         }
-        groups[groupIndex].files = groups[groupIndex].files || [];
-        groups[groupIndex].files.push(post);
+        group.files = group.files || [];
+        group.files.push(post);
       }
+
+      return group;
     }
 
     /**
@@ -389,6 +404,7 @@ function plugin (opts) {
           totalPages = 1;
         }
         for (let i = 0; i < totalPages; i++) {
+          // FIXME body should be split, hoping for better readability
           let thisPageFiles = pageFiles.slice(i * perPage, (i + 1) * perPage);
           // get variables for path
           if (i !== 0) {
@@ -524,7 +540,13 @@ function plugin (opts) {
       }
     }
 
-    // final function to push to files list
+    /**
+     * final function to push to files list
+     *
+     * @param {any} page
+     * @param {any} files
+     * @param {any} pages
+     */
     function returnPage (page, files, pages) {
       files[page.path] = page;
       if (typeof pages !== 'undefined') {
