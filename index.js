@@ -25,12 +25,17 @@ function plugin (opts) {
     }).filter(property => { return typeof property !== 'undefined'; });
   }
 
-  // the default make_safe function for titles, does not apply to slugs (on purpose)
-  const defaultMakeSafe = function (string) {
+  /**
+   * the default make_safe function for titles, does not apply to slugs (on purpose)
+   *
+   * @param {String} string
+   * @returns {String}
+   */
+  function _defaultMakeSafe (string) {
     return string.replace(/(-|\/)/g, '').replace(/('|"|\(|\)|\[|\]|\?|\+)/g, '').replace(/(\s)+/g, '-').toLowerCase();
-  };
+  }
   // let user override
-  const makeSafe = (typeof opts.make_safe === 'function') ? opts.make_safe : defaultMakeSafe;
+  const makeSafe = (typeof opts.make_safe === 'function') ? opts.make_safe : _defaultMakeSafe;
 
   /**
    * Returns the groups index based on group_name
@@ -87,58 +92,61 @@ function plugin (opts) {
     // empty group array to push results to
     const groups = [];
 
-    for (let file in files) {
-      let post = files[file];
-      for (let groupIndex in opts.groups) {
-        // if draft check
-        if (opts.drafts === false && (post.draft === true || post.draft === 'true' || post.published === false || post.published === 'false' || post.status === 'draft')) {
-          continue;
-        }
-        // see if post specifies searchType
-        let searchType = typeof opts.groups[groupIndex].search_type !== 'undefined' ? opts.groups[groupIndex].search_type : opts.search_type;
-        // check if post matches criteria then send the post to sort if it does
-        if (matchPost(post, groupIndex, searchType)) {
-          sortPost(groups, groupIndex, file, post);
+    (function init () {
+      // groupIndex being currently parsed, so functions can actually have some context
+      let groupIndex = null;
+
+      // parse all files passed to the plugin, filter and sort them
+      for (let file in files) {
+        let post = files[file];
+        for (groupIndex in opts.groups) {
+          // if draft check
+          if (opts.drafts === false &&
+            (post.draft === true || post.draft === 'true' || post.published === false || post.published === 'false' || post.status === 'draft')) {
+            continue;
+          }
+          // see if post specifies search_type
+          let searchType = typeof opts.groups[groupIndex].search_type !== 'undefined' ? opts.groups[groupIndex].search_type : opts.search_type;
+          // check if post matches criteria then send the post to sort if it does
+          if (matchPost(post, groupIndex, searchType)) {
+            sortPost(groups, groupIndex, file, post);
+          }
         }
       }
-    }
 
-    // once we have out new group object sort it by date if necessary
-    for (let groupIndex in groups) {
-      let expose = opts.groups[groupIndex].expose;
-      if (expose) {
-        // FIXME variable shadowing, shouldn't happening
-        for (expose in groups[groupIndex]) {
-          groups[groupIndex][expose].files = groups[groupIndex][expose].files.map(post => {
-            return post;
-          }).sort(_order);
-        }
-      } else {
-        // console.log(typeof groups[groups].files == "undefined")
-        if (typeof groups[groupIndex].files !== 'undefined') { // don't overwrite exposed groups
-          groups[groupIndex].files = groups[groupIndex].files.map(post => {
-            return post;
-          }).sort(_order);
+      // once we have out new group object sort it by date if necessary
+      for (groupIndex in groups) {
+        let expose = opts.groups[groupIndex].expose;
+        if (expose) {
+          // FIXME variable shadowing, shouldn't happening
+          for (expose in groups[groupIndex]) {
+            groups[groupIndex][expose].files = groups[groupIndex][expose].sort(_order);
+          }
+        } else {
+          // console.log(typeof groups[groups].files == "undefined")
+          if (typeof groups[groupIndex].files !== 'undefined') { // don't overwrite exposed groups
+            groups[groupIndex].files = groups[groupIndex].files.sort(_order);
+          }
         }
       }
-    }
 
-    // delete original file list
-    for (let file in files) {
-      delete files[file];
-    }
+      // delete original file list
+      for (let file in files) {
+        delete files[file];
+      }
 
-    // with our new groups array go through them and push our final files to our files list
-    for (let groupIndex in groups) {
-      let expose = opts.groups[groupIndex].expose;
-      let exposeValue = opts.groups[groupIndex][expose];
-      let pathReplace = {group: opts.groups[groupIndex].group_name};
-      let groupName = opts.groups[groupIndex].groupName;
-      let layout = opts.groups[groupIndex].page_layout || 'index';
-      let extension = typeof opts.groups[groupIndex].change_extension !== 'undefined' ? opts.groups[groupIndex].change_extension : '.html';
-      pageParser(files, groupIndex, groupName, exposeValue, expose, pathReplace, layout, extension);
-      postParser(files, groupIndex, groupName, exposeValue, expose, pathReplace, layout, extension);
-    }
+      // with our new groups array go through them and push our final files to our files list
+      for (let groupIndex in groups) {
+        let expose = opts.groups[groupIndex].expose;
+        let exposeValue = opts.groups[groupIndex][expose];
+        let pathReplace = {group: opts.groups[groupIndex].group_name};
+        let groupName = opts.groups[groupIndex].groupName;
+        let layout = opts.groups[groupIndex].page_layout || 'index';
+        let extension = typeof opts.groups[groupIndex].change_extension !== 'undefined' ? opts.groups[groupIndex].change_extension : '.html';
+        pageParser(files, groupIndex, groupName, exposeValue, expose, pathReplace, layout, extension);
+        postParser(files, groupIndex, groupName, exposeValue, expose, pathReplace, layout, extension);
+      }
+    })();
 
     /**
      * returns whether a post matches our criteria or not
@@ -159,16 +167,15 @@ function plugin (opts) {
         let propertyName = Object.keys(search[propIndex]);
         let propertyValue = search[propIndex][propertyName];
 
+        // any one wrong will return false
         if (searchType === 'all') {
-          // FIXME will never get into the following block if `match` is `false`
-          if (contains(data[propertyName], propertyValue) && match !== false) {
-            match = true;
-          } else {
+          match = true;
+          if (!contains(data[propertyName], propertyValue)) {
             match = false;
+            break;
           }
+        // any one correct will return true
         } else if (searchType === 'any') {
-          match = false;
-
           if (contains(data[propertyName], propertyValue)) {
             match = true;
             break;
@@ -241,8 +248,8 @@ function plugin (opts) {
     /**
      * from sortPost we actually push to our empty group array
      *
-     * @param {any} groups
-     * @param {Number} groupIndex
+     * @param {Array} groups where to push to
+     * @param {Number} groupIndex current group being acted upon
      * @param {any} file
      * @param {any} post
      * @param {any} expose
