@@ -73,17 +73,58 @@ function plugin (opts) {
 
   /**
    * sort function for group dates
-   * FIXME groupIndex WTF
    *
    * @param {any} a
    * @param {any} b
    * @returns
    */
-  function _order (a, b) {
-    if (typeof opts.groups[groupIndex].reverse !== 'undefined' && opts.groups[groupIndex].reverse === false) {
-      return a.date - b.date;
-    } else {
-      return b.date - a.date;
+  function _orderByDate (a, b) {
+    return b.date - a.date;
+  }
+
+  /**
+   * sort function for group dates, inverted
+   *
+   * @param {any} a
+   * @param {any} b
+   * @returns
+   */
+  function _orderByDateReverse (a, b) {
+    return a.date - b.date;
+  }
+
+  /**
+   * checks individual values of post and returns whether there's a match to the match function
+   *
+   * @param {any} data
+   * @param {any} propertyValue
+   * @returns
+   */
+  function _contains (data, propertyValue) {
+    // for when we just want to check if a property exists
+    if (typeof propertyValue === 'boolean') {
+      if (propertyValue === true && typeof data !== 'undefined') {
+        return true;
+      } else if (propertyValue === true && typeof data === 'undefined') {
+        return false;
+      } else if (propertyValue === false && typeof data === 'undefined') {
+        return true;
+      } else if (propertyValue === false && typeof data !== 'undefined') {
+        return false;
+      }
+    }
+    // for checking strings and arrays against our search criteria values
+    if (typeof data !== 'undefined') {
+      if (typeof data === 'string' && makeSafe(data) === makeSafe(propertyValue)) {
+        return true;
+      }
+      if (Array.isArray(data)) {
+        data = data.map(tag => {
+          tag = makeSafe(String(tag).trim());
+          return tag;
+        });
+        return data.includes(makeSafe(propertyValue));
+      }
     }
   }
 
@@ -109,7 +150,7 @@ function plugin (opts) {
           let searchType = typeof opts.groups[groupIndex].search_type !== 'undefined' ? opts.groups[groupIndex].search_type : opts.search_type;
           // check if post matches criteria then send the post to sort if it does
           if (matchPost(post, searchType, opts.groups[groupIndex].search)) {
-            groups[groupIndex] = sortPost(post, fileIndex, opts.groups[groupIndex]);
+            prepareAndPushPost(post, fileIndex, groups[groupIndex], opts.groups[groupIndex]);
           }
         }
       }
@@ -117,17 +158,14 @@ function plugin (opts) {
       // once we have out new `groups` object sort it by date if necessary
       for (groupIndex in groups) {
         let expose = opts.groups[groupIndex].expose;
+        let reverse = typeof opts.groups[groupIndex].reverse !== 'undefined' && opts.groups[groupIndex].reverse === false;
         if (expose) {
-          // FIXME variable shadowing, shouldn't happening
-          // FIXME also, what the hell is going on here, not everything is an expose!?!?! variable naming FTW! LOL JK!
-          for (expose in groups[groupIndex]) {
-            // FIXME there might not be files available
-            groups[groupIndex][expose].files = groups[groupIndex][expose].files.sort(_order);
+          for (let exposeVarName in groups[groupIndex]) {
+            groups[groupIndex][exposeVarName].files = reverse ? groups[groupIndex][exposeVarName].files.sort(_orderByDateReverse) : groups[groupIndex][exposeVarName].files.sort(_orderByDate);
           }
         } else {
-          // console.log(typeof groups[groups].files == "undefined")
           if (typeof groups[groupIndex].files !== 'undefined') { // don't overwrite exposed groups
-            groups[groupIndex].files = groups[groupIndex].files.sort(_order);
+            groups[groupIndex].files = reverse ? groups[groupIndex].files.sort(_orderByDateReverse) : groups[groupIndex].files.sort(_orderByDate);
           }
         }
       }
@@ -171,13 +209,13 @@ function plugin (opts) {
         // first one wrong will return false
         if (searchType === 'all') {
           match = true;
-          if (!contains(data[propertyName], propertyValue)) {
+          if (!_contains(data[propertyName], propertyValue)) {
             match = false;
             break;
           }
         // first one correct will return true
         } else if (searchType === 'any') {
-          if (contains(data[propertyName], propertyValue)) {
+          if (_contains(data[propertyName], propertyValue)) {
             match = true;
             break;
           }
@@ -187,43 +225,14 @@ function plugin (opts) {
     }
 
     /**
-     * checks individual values of post and returns whether there's a match to the match function
-     *
-     * @param {any} data
-     * @param {any} propertyValue
-     * @returns
-     */
-    function contains (data, propertyValue) {
-      // for when we just want to check if a property exists
-      if (typeof propertyValue === 'boolean') {
-        if (propertyValue === true && typeof data !== 'undefined') {
-          return true;
-        } else if (propertyValue === true && typeof data === 'undefined') {
-          return false;
-        } else if (propertyValue === false && typeof data === 'undefined') {
-          return true;
-        } else if (propertyValue === false && typeof data !== 'undefined') {
-          return false;
-        }
-      }
-      // for checking strings and arrays against our search criteria values
-      if (typeof data !== 'undefined') {
-        if (typeof data === 'string' && makeSafe(data) === makeSafe(propertyValue)) {
-          return true;
-        }
-        if (Array.isArray(data)) {
-          data = data.map(tag => {
-            tag = makeSafe(String(tag).trim());
-            return tag;
-          });
-          return data.includes(makeSafe(propertyValue));
-        }
-      }
-    }
-
-    /**
-     * sort the post/file into the right group.
+     * Prepares the post and pushes it into the right group.
      * `expose` will influence the sorting and shoud be used in a group like:
+     * ```
+     * {
+     *    expose: 'tags'
+     * }
+     * ```
+     * or
      * ```
      * {
      *    expose: 'tags',
@@ -233,40 +242,74 @@ function plugin (opts) {
      *
      * @param {Object} post the actual object containing all properties of the post
      * @param {Number|String} fileName the current file being parsed
-     * @param {Array} optsGroup the current groups in the options passed to Metalsmith
+     * @param {Object} group the current group being filled
+     * @param {Object} optsGroup the current groups in the options passed to Metalsmith
      * @return {Array}
      */
-    function sortPost (post, fileName, optsGroup) {
+    function prepareAndPushPost (post, fileName, group, optsGroup) {
       const expose = optsGroup.expose;
       const exposeValue = optsGroup[expose];
 
-      if (typeof post.title === 'undefined') {
-        throw new Error('File ' + fileName + ' missing title. If the file has a title, make sure the frontmatter is formatted correctly.');
-      }
+      preparePost(post, optsGroup, fileName);
 
       if (expose) {
         if (typeof exposeValue === 'undefined') { // e.g. expose:tags but no specific tag defined, it'll expose all
           for (let property in post[expose]) { // no need to get list of tags, for each tag in post it's "pushed" to its tags
-            return createGroup(optsGroup, post, post[expose][property]);
+            pushToGroup(post, group, optsGroup, post[expose][property]);
           }
         } else {
-          return createGroup(optsGroup, post, exposeValue); // e.g. expose: tags, tags: post
+          pushToGroup(post, group, optsGroup, exposeValue); // e.g. expose: tags, tags: post
         }
       } else {
-        return createGroup(optsGroup, post); // don't expose anything
+        pushToGroup(post, group, optsGroup); // don't expose anything
       }
     }
 
     /**
-     * create the brand new group populated with all the good intentions
+     * slots the post into the current group, with exposed values, dates, or as is
      *
-     * @param {Object} optsGroup current group being acted upon
      * @param {any} post the ready-available data related to the post
+     * @param {Object} group the current group
+     * @param {Object} optsGroup current group being acted upon
      * @param {String|Array|Boolean} expose the exposed variable for the post
      * @return {Array}
      */
-    function createGroup (optsGroup, post, expose) {
-      // post prepare
+    function pushToGroup (post, group, optsGroup, expose) {
+      group = group || {};
+      if (expose) {
+        group[expose] = group[expose] || {};
+        group[expose].files = group[expose].files || [];
+        group[expose].files.push(post);
+      } else {
+        if (typeof opts.groups.date_format !== 'undefined') {
+          let dateItems = opts.groups.date_format;
+          dateItems = dateItems.split('/');
+          for (let i = 1; i <= dateItems.length; i++) {
+            let format = dateItems.slice(0, i).join('/');
+            let dategroup = moment(post.date).format(format);
+            group.dates = group.dates || {};
+            group.dates[dategroup] = group.dates[dategroup] || {};
+            group.dates[dategroup].files = group.dates[dategroup].files || [];
+            group.dates[dategroup].files.push(post);
+          }
+        }
+        group.files = group.files || [];
+        group.files.push(post);
+      }
+    }
+
+    /**
+     * Prepare the post with all the additional stuff we need
+     *
+     * @param {Object} post
+     * @param {Object} optsGroup
+     * @param {String} fileName
+     */
+    function preparePost (post, optsGroup, fileName) {
+      if (typeof post.title === 'undefined') {
+        throw new Error('File ' + fileName + ' missing title. If the file has a title, make sure the frontmatter is formatted correctly.');
+      }
+
       const groupName = optsGroup.group_name;
       post.original_contents = new Buffer(post.contents.toString());
       // sort out the path for the post
@@ -313,32 +356,6 @@ function plugin (opts) {
           post[prop] = optsGroup.add_prop[set][prop];
         }
       }
-      // end of post prepare
-
-      // actually push to group
-      const group = {};
-      if (expose) {
-        group[expose] = group[expose] || {};
-        group[expose].files = group[expose].files || [];
-        group[expose].files.push(post);
-      } else {
-        if (typeof opts.groups.date_format !== 'undefined') {
-          let dateItems = opts.groups.date_format;
-          dateItems = dateItems.split('/');
-          for (let i = 1; i <= dateItems.length; i++) {
-            let format = dateItems.slice(0, i).join('/');
-            let dategroup = moment(post.date).format(format);
-            group.dates = group.dates || {};
-            group.dates[dategroup] = group.dates[dategroup] || {};
-            group.dates[dategroup].files = group.dates[dategroup].files || [];
-            group.dates[dategroup].files.push(post);
-          }
-        }
-        group.files = group.files || [];
-        group.files.push(post);
-      }
-
-      return group;
     }
 
     /**
@@ -554,6 +571,6 @@ function plugin (opts) {
       }
     }
 
-    done();
+    return done();
   };
 }
