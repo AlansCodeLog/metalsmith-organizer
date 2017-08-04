@@ -4,14 +4,22 @@
   "description": "A Metalsmith plugin for organizing posts into groups (pages, posts, archives, etc), including their pagination, permalinks, etc.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint --ignore-pattern node_modules **/*.js"
   },
   "author": "Alan North",
   "license": "MIT",
   "dependencies": {
     "moment": "^2.18.1"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "eslint": "^4.3.0",
+    "eslint-config-standard": "^10.2.1",
+    "eslint-plugin-import": "^2.7.0",
+    "eslint-plugin-node": "^5.1.1",
+    "eslint-plugin-promise": "^3.5.0",
+    "eslint-plugin-standard": "^3.0.1"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/AlansCodeLog/metalsmith-organizer.git"
