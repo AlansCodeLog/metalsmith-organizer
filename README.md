@@ -1,3 +1,7 @@
+# NOTICE
+
+Although this plugin still works (and I'm still using it for now), I will no longer be maintining it as I'm working on my own static generator that will do all this and more. I have published the last beta, 2.0.0, as the latest release since there were some bugfixes in the betas that I never got around to publishing and that is the version I use for my blog which seems to be working fine.
+
 # metalsmith-organizer
 
 A Metalsmith plugin for organizing posts into groups (pages, posts, archives, etc), including their pagination, permalinks, etc.
